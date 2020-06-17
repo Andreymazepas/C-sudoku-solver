@@ -4,4 +4,4 @@ SDIR = src
 INC = -Isrc -Ilib
 CFLAGS= -Wall 
 main:
-	$(CC) $(INC) -g src/main.c -o p4 -lncurses $(CLAGS)
+	$(CC) $(INC) -g src/main.c -o sudoku -lncurses $(CLAGS)

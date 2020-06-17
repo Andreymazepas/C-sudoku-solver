@@ -5,30 +5,17 @@
 #include <time.h>
 #include <stdlib.h>
 
-//prototipo de funcoes
-int getposX(int X);             // retorna a posicao traduzida de coordenada x
-int getposY(int Y);              //  retorna a posicao traduzida de coordenada y
-void desenhaFundo();             // desenha o fundo e as intrucoes
-void inicializaCampo();          // inicializa a matriz do jogo com os valores da matriz fixa do jogo;
-void desenhaCampo(int x, int y); // desenha os numeros do jogo, selecionando onde esta o cursor
-int possuiIgual(int x, int y);   // checa se possui numero igual na col/linha/quadrado;
-int geraSolucao();               // Gera o passo-a-passo da solução recursiva do sudoku
-void criaNovoJogo();             // Cria nova matriz fixa aleatoria
-int restamEspacos();             // retorna 1 se ainda ha espacos a serem preenchidos no jogo
-int colAtual = 0;                // variaveis de auxilio, apontam pra posicao atual do solver
-int linAtual = 0;
-
-/*int sudokuInitial[9][9] = {{1, 0, 0, 0, 0, 0, 0, 0, 0},
-                           {0, 2, 0, 0, 0, 0, 0, 0, 0},
-                           {0, 0, 3, 0, 0, 0, 0, 0, 0},
-
-                           {0, 0, 0, 4, 0, 0, 0, 0, 0},
-                           {0, 0, 0, 0, 5, 0, 0, 0, 0},
-                           {0, 0, 0, 0, 0, 6, 0, 0, 0},
-
-                           {0, 0, 0, 0, 0, 0, 7, 0, 0},
-                           {0, 0, 0, 0, 0, 0, 0, 8, 0},
-                           {0, 0, 0, 0, 0, 0, 0, 0, 9}};*/
+int getposX(int X);            // return actual game positions by providing screen coordinates
+int getposY(int Y);            //
+void drawBackground();         // draws background and instructions
+void initializePlayfield();    // initializes the game matrix with the sudokuInitial array
+void drawFields(int x, int y); // draws the game fields, highlighting the cursor
+int hasEqual(int x, int y);    // checks for an equal number in that line/col;
+int generateSolution();        // generates step-by-step recursive solution
+void createNewGame();          // creates a new random matrix
+int hasBlanks();               // returns true for any blank field left in the game
+int currCol = 0;
+int currLin = 0;
 
 int sudokuInitial[9][9] = {{8, 0, 5, 0, 0, 1, 0, 2, 0},
                            {0, 0, 0, 0, 0, 4, 0, 9, 0},
@@ -48,46 +35,45 @@ int main(void)
 {
     srand(time(NULL));
 
-    int y, x; // variaveis de uso situacional para x e y, como cursor ou posicao de numero
-    int ch;   // caractere lido
+    int y, x;
+    int ch;
 
-    /* inicializa ncurses */
+    /* initialize ncurses */
 
     initscr();
     clear();
-    keypad(stdscr, TRUE); //habilita uso de setas e outras teclas
+    keypad(stdscr, TRUE); // enable special character usage
     cbreak();
     noecho();
 
     if (has_colors())
     {
-        // cria os pares para facilitar uso das cores no jogo
         start_color();
-        init_pair(1, COLOR_GREEN, COLOR_BLACK);   //normal
-        init_pair(2, COLOR_CYAN, COLOR_BLACK);    //numero fixo
-        init_pair(3, COLOR_BLACK, COLOR_CYAN);    //numero fixo selecionado
-        init_pair(4, COLOR_BLACK, COLOR_GREEN);   //normal selecionado
-        init_pair(5, COLOR_MAGENTA, COLOR_BLACK); //alerta
-        init_pair(6, COLOR_BLACK, COLOR_MAGENTA); //alerta selecionado
+        init_pair(1, COLOR_GREEN, COLOR_BLACK);   // regular numbers
+        init_pair(2, COLOR_CYAN, COLOR_BLACK);    // fixed number
+        init_pair(3, COLOR_BLACK, COLOR_CYAN);    // highlighted fixed number
+        init_pair(4, COLOR_BLACK, COLOR_GREEN);   // highlighted regular
+        init_pair(5, COLOR_MAGENTA, COLOR_BLACK); // error
+        init_pair(6, COLOR_BLACK, COLOR_MAGENTA); // highlighted error
     }
     else
     {
-        printw("Terminal nao suporta cores!\n");
+        printw("Colors are unsupported in this terminal!\n");
         getch();
         exit(EXIT_FAILURE);
     }
 
-    desenhaFundo();
-    inicializaCampo();
+    drawBackground();
+    initializePlayfield();
 
-    //inicializa o cursor
     y = 0;
     x = 0;
     int isRunning = 1;
-    /* loop principal */
+
+    /* main game loop */
     while (isRunning)
     {
-        desenhaCampo(x, y);
+        drawFields(x, y);
         refresh();
         ch = getch();
         switch (ch)
@@ -137,36 +123,35 @@ int main(void)
             break;
         case 'r':
         case 'R':
-            inicializaCampo();
+            initializePlayfield();
             break;
         case 'c':
         case 'C':
-            linAtual = 0;
-            colAtual = 0;
-            inicializaCampo();
-            if (!geraSolucao())
+            currLin = 0;
+            currCol = 0;
+            initializePlayfield();
+            if (!generateSolution())
             {
                 printw("SEM SOLUCAO");
             }
             break;
         case 'n':
         case 'N':
-            inicializaCampo();
-            criaNovoJogo();
-            inicializaCampo();
+            initializePlayfield();
+            createNewGame();
+            initializePlayfield();
             refresh();
             break;
         }
 
         if ((ch > '0' && ch <= '9'))
         {
-            if (!sudokuInitial[x][y])   //se o usuario nao esta tentando escrever em cima da inicial
-                sudoku[x][y] = ch - 48; //atualiza a matriz de jogo
+            if (!sudokuInitial[x][y])   // block writing over fixed numbers
+                sudoku[x][y] = ch - 48; // update game matrix
         }
     }
 
     endwin();
-
     exit(0);
 }
 
@@ -190,24 +175,23 @@ int getposY(int y)
     return posy;
 }
 
-void desenhaFundo()
+void drawBackground()
 {
-    //desenha o background
     for (int y = 0; y < LINES; y++)
     {
         mvhline(y, 0, ' ', COLS);
     }
-    //linhas verticais
+    // vertical lines
     mvvline(1, 1, ACS_VLINE, 11);
     mvvline(1, 9, ACS_VLINE, 11);
     mvvline(1, 17, ACS_VLINE, 11);
     mvvline(1, 25, ACS_VLINE, 11);
-    //linhas horizontais
+    // horizontal lines
     mvhline(0, 1, ACS_HLINE, 24);
     mvhline(4, 1, ACS_HLINE, 24);
     mvhline(8, 1, ACS_HLINE, 24);
     mvhline(12, 1, ACS_HLINE, 24);
-    //cantos
+    // corners
     mvaddch(0, 1, ACS_ULCORNER);
     mvaddch(0, 25, ACS_URCORNER);
     mvaddch(12, 1, ACS_LLCORNER);
@@ -216,20 +200,20 @@ void desenhaFundo()
     mvaddch(8, 1, ACS_LTEE);
     mvaddch(4, 25, ACS_RTEE);
     mvaddch(8, 25, ACS_RTEE);
-    //instrucoes
-    mvaddstr(3, 30, "Setas ou WASD para mover");
-    mvaddstr(4, 30, "Inserir numeros normalmente");
-    mvaddstr(5, 30, "X ou Backspace para apagar");
-    mvaddstr(6, 30, "N para gerar um novo jogo");
-    mvaddstr(7, 30, "C para apresentar uma solução");
-    mvaddstr(8, 30, "R para reiniciar");
-    mvaddstr(9, 30, "Q para sair");
+    // instructions
+    mvaddstr(3, 30, "Arrows or WASD keys to move");
+    mvaddstr(4, 30, "Input numbers as usual");
+    mvaddstr(5, 30, "X or Backspace to erase a move");
+    mvaddstr(6, 30, "N to generate a new game");
+    mvaddstr(7, 30, "C to generate a solution");
+    mvaddstr(8, 30, "R to restart game");
+    mvaddstr(9, 30, "Q to quit");
     return;
 }
 
-void criaNovoJogo()
+void createNewGame()
 {
-    // zera a matriz fixa
+    // zero out the fixed game matrix
     for (int i = 0; i < 9; i++)
     {
         for (int j = 0; j < 9; j++)
@@ -238,8 +222,7 @@ void criaNovoJogo()
         }
     }
 
-    // gera novos numeros para a matriz fixa
-    // funciona com numeros aleatorios, checando se podem fazer parte de uma solucao
+    // generate random numbers checking if they are part of a valid solution
     for (int i = 0; i < 9; i++)
     {
         for (int j = 0; j < 9; j++)
@@ -249,10 +232,10 @@ void criaNovoJogo()
                 int new = rand() % 10;
                 sudokuInitial[i][j] = new;
                 sudoku[i][j] = new;
-                if (possuiIgual(i, j))
+                if (hasEqual(i, j))
                 {
                     sudokuInitial[i][j] = 0;
-                    sudoku[i][j] = '.' - 48; // equivale a lugar vazio
+                    sudoku[i][j] = '.' - 48; // blank space
                 }
             }
         }
@@ -261,30 +244,30 @@ void criaNovoJogo()
     return;
 }
 
-void desenhaCampo(int x, int y)
+void drawFields(int x, int y)
 {
-    //printa os numeros
     for (int i = 0; i < 9; i++)
     {
         for (int j = 0; j < 9; j++)
         {
             if (i == y && j == x)
-            { //mudar a cor do selecionado atual
+            {
+                // change character color accordingly
                 attron(COLOR_PAIR(4));
                 if (sudokuInitial[j][i])
                     attron(COLOR_PAIR(3));
-                else if (possuiIgual(j, i))
+                else if (hasEqual(j, i))
                 {
                     attron(COLOR_PAIR(6));
                 }
                 mvaddch(getposY(i), getposX(j), sudoku[j][i] + 48);
             }
-            else //numeros normais
+            else // regular numbers
             {
                 attron(COLOR_PAIR(1));
                 if (sudokuInitial[j][i])
                     attron(COLOR_PAIR(2));
-                else if (possuiIgual(j, i))
+                else if (hasEqual(j, i))
                 {
                     attron(COLOR_PAIR(5));
                 }
@@ -292,7 +275,7 @@ void desenhaCampo(int x, int y)
             }
         }
     }
-    //debug de coordenadas x e y
+    // debug info
     attron(COLOR_PAIR(3));
     mvaddstr(1, 30, "x: ");
     mvaddch(1, 33, x + 48);
@@ -300,9 +283,9 @@ void desenhaCampo(int x, int y)
     mvaddch(1, 39, y + 48);
 }
 
-void inicializaCampo()
+void initializePlayfield()
 {
-    memcpy(sudoku, sudokuInitial, 9 * 9 * sizeof(int)); //copia a matriz inicial para a matriz de jogo;
+    memcpy(sudoku, sudokuInitial, 9 * 9 * sizeof(int)); // copies initial matrix into play matrix
     for (int i = 0; i < 9; i++)
     {
         for (int j = 0; j < 9; j++)
@@ -313,9 +296,9 @@ void inicializaCampo()
     }
 }
 
-int possuiIgual(int x, int y)
+int hasEqual(int x, int y)
 {
-    // linhas
+    // line
     for (int i = 0; i < 9; i++)
     {
         if (i != x &&
@@ -323,7 +306,7 @@ int possuiIgual(int x, int y)
             sudoku[x][y] != '.' - 48)
             return 1;
     }
-    // colunas
+    // collumn
     for (int i = 0; i < 9; i++)
     {
         if (i != y &&
@@ -331,7 +314,7 @@ int possuiIgual(int x, int y)
             sudoku[x][y] != '.' - 48)
             return 1;
     }
-    // blocos
+    // block
     for (int i = (y / 3) * 3; i < (y / 3) * 3 + 3; i++)
     {
         for (int j = (x / 3) * 3; j < (x / 3) * 3 + 3; j++)
@@ -347,48 +330,44 @@ int possuiIgual(int x, int y)
     return 0;
 }
 
-int geraSolucao()
+int generateSolution()
 {
 
-    int numero;            // numero sendo testado
-    int LinhaOG, ColunaOG; // linha e coluna originais
+    int number;           // number being tested
+    int origLin, origCol; // original line and column
 
-    // termino da funcao se nao ha mais o que resolver
-    if (!restamEspacos())
+    if (!hasBlanks())
     {
         return 1;
     }
-    // testa todos os possiveis numeros, atribuindo uma cor ao vertice
-    for (numero = 1; numero <= 9; numero++)
+    for (number = 1; number <= 9; number++)
     {
-        int backup = sudoku[linAtual][colAtual]; // restaurar caso ja haja vertice com a mesma cor na linha/coluna/bloco
-        sudoku[linAtual][colAtual] = numero; 
-        desenhaCampo(linAtual, colAtual);
+        int backup = sudoku[currLin][currCol];
+        sudoku[currLin][currCol] = number;
+        drawFields(currLin, currCol);
         refresh();
-        if (!possuiIgual(linAtual, colAtual))
+        if (!hasEqual(currLin, currCol))
         {
-            LinhaOG = linAtual;
-            ColunaOG = colAtual;
-            if (geraSolucao()) // chama a funcao recursivamente
+            origLin = currLin;
+            origCol = currCol;
+            if (generateSolution())
                 return 1;
-            // ao voltar o valor, atualizar valores anteriores de linha e coluna para backtraking
-            linAtual = LinhaOG;
-            colAtual = ColunaOG;
+            // update previous values for backtracking
+            currLin = origLin;
+            currCol = origCol;
 
-            sudoku[linAtual][colAtual] = '.' - 48; // reseta o valor
-            desenhaCampo(linAtual, colAtual);
+            sudoku[currLin][currCol] = '.' - 48; // blank out
+            drawFields(currLin, currCol);
             refresh();
         }
 
-        sudoku[linAtual][colAtual] = backup;
+        sudoku[currLin][currCol] = backup;
     }
 
     return 0;
 }
 
-// retorna se ha espacos a serem resolvidos
-// uso exclusivo do solver, atualiza posicao das vars globais de coluna e linha
-int restamEspacos()
+int hasBlanks()
 {
     for (int i = 0; i < 9; i++)
     {
@@ -396,8 +375,8 @@ int restamEspacos()
         {
             if (sudoku[j][i] == '.' - 48)
             {
-                linAtual = j;
-                colAtual = i;
+                currLin = j;
+                currCol = i;
                 return 1;
             }
         }
